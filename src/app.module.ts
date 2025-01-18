@@ -6,6 +6,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import helmet from 'helmet';
 import { ConfigModule } from '@nestjs/config';
+import { EmailModule } from './email/email.module';
+import { BullModule } from '@nestjs/bull';
 
 @Module({
   imports: [
@@ -15,6 +17,13 @@ import { ConfigModule } from '@nestjs/config';
       envFilePath: '.env',
       isGlobal: true,
     }),
+    BullModule.forRoot({
+      redis: {
+        port: 6379,
+        host: 'localhost',
+      },
+    }),
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

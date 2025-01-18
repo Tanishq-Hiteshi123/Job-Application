@@ -23,11 +23,25 @@ model User {
   updatedAt    DateTime      @updatedAt
   jobs         Job[]         @relation("EmployerJobs")
   applications Application[]
+  refreshToken RefreshToken?
+  otp          String?
+  otp_expiry   DateTime?
+  isVerified   Boolean       @default(false)
+}
+
+model RefreshToken {
+  id            Int      @id @default(autoincrement())
+  refresh_token String
+  userId        Int      @unique
+  user          User     @relation(fields: [userId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Job {
-  id           Int           @id @default(autoincrement())
-  title        String
+  id    Int    @id @default(autoincrement())
+  title String
+
   description  String
   location     String
   salary       Float

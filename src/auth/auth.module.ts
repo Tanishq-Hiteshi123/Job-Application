@@ -6,6 +6,7 @@ import { PasswordHashService } from 'src/common/services/password-Hash.service';
 import { AccessRefreshTokensService } from 'src/common/services/accessRefreshToken.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { EmailModule } from 'src/email/email.module';
 
 @Module({
   imports: [
@@ -29,6 +30,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         },
       }),
     }),
+
+    EmailModule,
   ],
   providers: [
     AuthService,
