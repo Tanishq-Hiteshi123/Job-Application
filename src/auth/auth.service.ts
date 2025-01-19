@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   InternalServerErrorException,
   UnauthorizedException,
@@ -13,6 +14,11 @@ import { AccessRefreshTokensService } from 'src/common/services/accessRefreshTok
 import { Queue } from 'bullmq';
 import { InjectQueue } from '@nestjs/bull';
 import { VerifyOTPEmailDTO } from './dtos/verifyEmailOTP';
+import { Request } from 'express';
+import { RefreshAccessTokenDTO } from './dtos/refreshAccessToken.dto';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { DecodedPayloadUser } from './entity/decodedPayload.entity';
 
 @Injectable()
 export class AuthService {
@@ -20,7 +26,9 @@ export class AuthService {
     private prismaService: PrismaService,
     private passwordHashService: PasswordHashService,
     private accessRefreshTokensService: AccessRefreshTokensService,
+    private jwtService: JwtService,
     @InjectQueue('emailQueue') private emailQueue: Queue,
+    private configService: ConfigService,
   ) {}
   async registerUser(registerUserData: RegisterUserDTO) {
     try {
@@ -124,6 +132,24 @@ export class AuthService {
         throw new InternalServerErrorException('Tokens could not be generated');
       }
 
+      // Store the refresh token in the DB also :-   it the refresh token already generate then update the token , otherwise create new entry
+      const storedInDB = await this.prismaService.refreshToken.upsert({
+        where: {
+          userId: isUserExist.id,
+        },
+        update: {
+          refresh_token: refreshToken,
+        },
+        create: {
+          userId: isUserExist.id,
+          refresh_token: refreshToken,
+        },
+      });
+
+      if (!storedInDB) {
+        throw new InternalServerErrorException();
+      }
+
       return {
         isUserExist,
         accessToken,
@@ -178,6 +204,96 @@ export class AuthService {
         updatedUser,
       };
     } catch (error) {
+      throw error;
+    }
+  }
+
+  async getMyProfile(req: Request) {
+    try {
+      const userId = req['user']?.userId;
+
+      if (!userId) {
+        throw new UnauthorizedException('User Id is not provided');
+      }
+
+      const userDetails = await this.prismaService.user.findUnique({
+        where: {
+          id: userId,
+        },
+      });
+
+      if (!userDetails) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      return {
+        userDetails,
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async refreshAccessToken(refreshAccessTokenData: RefreshAccessTokenDTO) {
+    try {
+      const { refreshToken, userId } = refreshAccessTokenData;
+      if (!refreshToken || !userId) {
+        throw new BadRequestException('Please Provide the required Field Data');
+      }
+
+      // Check in the Db for the entry of refresh token for this userId :-
+
+      const refreshTokenEntry =
+        await this.prismaService.refreshToken.findUnique({
+          where: {
+            userId: +userId,
+          },
+        });
+
+      if (!refreshTokenEntry) {
+        throw new UnauthorizedException('Please Login First');
+      }
+
+      // Verify the refresh Token :-
+      const decodedUserData: DecodedPayloadUser = this.jwtService.verify(
+        refreshToken,
+        {
+          secret: this.configService.get<string>('REFRESH_TOKEN_SECRET'),
+        },
+      );
+
+      if (decodedUserData?.userId != userId) {
+        throw new UnauthorizedException('Please Login First');
+      }
+
+      // Generate New Access Token token :-
+
+      const newAccessToken =
+        await this.accessRefreshTokensService.generateAccessToken({
+          userId,
+          userEmail: decodedUserData.userEmail,
+          userRole: decodedUserData.userRole,
+        });
+
+      if (!newAccessToken) {
+        throw new InternalServerErrorException(
+          'Access Token Could not get generated',
+        );
+      }
+
+      return {
+        newAccessToken,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.name == 'JsonWebTokenError') {
+          throw new UnauthorizedException('Invalid Token');
+        }
+
+        if (error.name == 'TokenExpiredError') {
+          throw new HttpException('Need To Login Again!!!', 401);
+        }
+      }
       throw error;
     }
   }

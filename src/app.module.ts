@@ -8,6 +8,9 @@ import helmet from 'helmet';
 import { ConfigModule } from '@nestjs/config';
 import { EmailModule } from './email/email.module';
 import { BullModule } from '@nestjs/bull';
+import { EmployeerModule } from './employeer/employeer.module';
+import { APP_GUARD } from '@nestjs/core';
+import { RoleGuard } from './auth/guards/role.guard';
 
 @Module({
   imports: [
@@ -24,6 +27,7 @@ import { BullModule } from '@nestjs/bull';
       },
     }),
     EmailModule,
+    EmployeerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

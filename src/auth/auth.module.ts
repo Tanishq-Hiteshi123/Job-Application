@@ -49,6 +49,6 @@ import { EmailModule } from 'src/email/email.module';
     },
   ],
   controllers: [AuthController],
-  exports: [AccessRefreshTokensService],
+  exports: [AccessRefreshTokensService, JwtModule],
 })
 export class AuthModule {}
